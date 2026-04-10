@@ -16,6 +16,8 @@ document.getElementById("scanBtn").addEventListener("click", async () => {
     document.getElementById("scoreDisplay").className = "score-circle";
     document.getElementById("trustTier").className = "trust-tier";
     document.getElementById("trustTier").innerText = "";
+    document.getElementById("aiConsole").style.display = "none";
+    document.getElementById("aiOutput").innerHTML = "";
 
     for(let i=1; i<=20; i++) {
         let el = document.getElementById(`p${i}`);
@@ -647,4 +649,152 @@ async function executeLiveScan() {
 
         flagList.innerHTML += `<li class="flag-item" style="animation-delay: ${index * 0.06}s;"><span class="badge ${bClass}">${bText}</span> <span style="color:${color}">${f}</span></li>`;
     });
+
+    // ══════════════════════════════════════
+    // PHASE 4: AI DEEP ANALYSIS (Gemini Nano)
+    // Runs AFTER heuristic scan completes.
+    // Supplementary — adds natural language insight.
+    // ══════════════════════════════════════
+    runAIAnalysis(currentFullText, finalScore, flags, scrapedCompanyName);
+}
+
+// ═══════════════════════════════════════════════════════
+// CHROME BUILT-IN AI — Gemini Nano On-Device Analysis
+// Runs entirely on the user's device. Zero cost, full privacy.
+// Falls back gracefully if the API isn't available.
+// ═══════════════════════════════════════════════════════
+
+async function getAIApi() {
+    // Try multiple namespaces — the API location has changed across Chrome versions
+    if (typeof chrome !== 'undefined' && chrome.aiOriginTrial && chrome.aiOriginTrial.languageModel) {
+        return chrome.aiOriginTrial.languageModel;
+    }
+    if (typeof self !== 'undefined' && self.ai && self.ai.languageModel) {
+        return self.ai.languageModel;
+    }
+    if (typeof window !== 'undefined' && window.ai && window.ai.languageModel) {
+        return window.ai.languageModel;
+    }
+    return null;
+}
+
+async function runAIAnalysis(jobText, heuristicScore, heuristicFlags, companyName) {
+    const aiConsole = document.getElementById("aiConsole");
+    const aiOutput = document.getElementById("aiOutput");
+
+    // Don't run AI if there's no text to analyze
+    if (!jobText || jobText.trim().length < 50) {
+        return;
+    }
+
+    const aiApi = await getAIApi();
+
+    if (!aiApi) {
+        // AI not available — show informational message
+        aiConsole.style.display = "block";
+        aiOutput.innerHTML = `<div class="ai-unavailable">
+            ⚡ On-device AI analysis is available if you enable Chrome's built-in AI:<br>
+            1. Open <strong>chrome://flags/#prompt-api-for-gemini-nano</strong><br>
+            2. Set to <strong>Enabled</strong><br>
+            3. Restart Chrome<br><br>
+            This runs Gemini Nano entirely on your device — free, private, no API key needed.
+        </div>`;
+        return;
+    }
+
+    // Check if the model is available
+    try {
+        const capabilities = await aiApi.capabilities();
+        
+        if (capabilities.available === 'no') {
+            aiConsole.style.display = "block";
+            aiOutput.innerHTML = `<div class="ai-unavailable">
+                Gemini Nano is not supported on this device. Requires Chrome 127+ on desktop with sufficient hardware.
+            </div>`;
+            return;
+        }
+
+        // Show the console with loading state
+        aiConsole.style.display = "block";
+        aiOutput.innerHTML = `<span class="ai-status"><div class="spinner"></div> Initializing Gemini Nano on-device model...</span>`;
+
+        // If the model needs to download, show progress
+        if (capabilities.available === 'after-download') {
+            aiOutput.innerHTML = `<span class="ai-status"><div class="spinner"></div> Downloading Gemini Nano model (one-time)...</span>`;
+        }
+
+        // Create the AI session with system instructions
+        const session = await aiApi.create({
+            monitor(m) {
+                m.addEventListener('downloadprogress', (e) => {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    aiOutput.innerHTML = `<span class="ai-status"><div class="spinner"></div> Downloading AI model: ${pct}%</span>`;
+                });
+            },
+            initialPrompts: [{
+                role: 'system',
+                content: `You are a cybersecurity expert specialized in job scam detection. You analyze job postings and provide a brief, clear verdict.
+
+Rules:
+- Be concise (3-5 sentences max)
+- Start with a one-word verdict: SAFE, SUSPICIOUS, or DANGEROUS
+- Explain what specific patterns you see (or don't see)
+- If safe, briefly explain why
+- If suspicious/dangerous, explain what the user should watch out for
+- Never use markdown formatting, just plain text
+- Be direct and actionable — this protects real people from real scams`
+            }]
+        });
+
+        // Build the prompt with context from our heuristic scan
+        const heuristicContext = heuristicFlags.length > 0 
+            ? `\n\nOur automated scan found these signals (score: ${heuristicScore}%):\n${heuristicFlags.slice(0, 8).join('\n')}`
+            : `\n\nOur automated scan found no red flags (score: 0%).`;
+
+        const prompt = `Analyze this job posting for scam indicators. Company: "${companyName || 'Unknown'}".${heuristicContext}
+
+Job description text (first 1500 chars):
+"""
+${jobText.substring(0, 1500)}
+"""
+
+Provide your security verdict:`;
+
+        // Stream the response with typing effect
+        aiOutput.innerHTML = '';
+        aiOutput.classList.add('streaming');
+
+        try {
+            const stream = session.promptStreaming(prompt);
+            let fullResponse = '';
+
+            for await (const chunk of stream) {
+                fullResponse = chunk;
+                aiOutput.textContent = fullResponse;
+            }
+
+            aiOutput.classList.remove('streaming');
+        } catch (streamError) {
+            // Fall back to non-streaming if streaming isn't supported
+            aiOutput.innerHTML = `<span class="ai-status"><div class="spinner"></div> Analyzing with Gemini Nano...</span>`;
+            
+            try {
+                const response = await session.prompt(prompt);
+                aiOutput.textContent = response;
+            } catch (promptError) {
+                aiOutput.innerHTML = `<div class="ai-unavailable">AI analysis could not complete. The on-device model may need more time to initialize. Try scanning again.</div>`;
+            }
+        }
+
+        // Clean up the session
+        session.destroy();
+
+    } catch (error) {
+        console.error('AI Analysis error:', error);
+        aiConsole.style.display = "block";
+        aiOutput.innerHTML = `<div class="ai-unavailable">
+            AI analysis encountered an error. Make sure Chrome's built-in AI is enabled:<br>
+            Open <strong>chrome://flags/#prompt-api-for-gemini-nano</strong> → Set to <strong>Enabled</strong> → Restart Chrome
+        </div>`;
+    }
 }
