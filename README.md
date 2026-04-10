@@ -10,8 +10,10 @@ Job scam postings are increasingly sophisticated. Shield: Deep Scan analyzes job
 
 - Vague or exaggerated salary promises
 - Requests for personal/financial information upfront
-- Unverified or newly registered employer domains
-- Common scam language patterns detected via heuristic NLP
+- Unverified or newly registered employer domains (via official ICANN RDAP)
+- Advanced evasion techniques like **Emoji Flooding** and **Ghost Text** (invisible Unicode steganography)
+- Analyzes context using a **Corroborated Threat Intelligence** engine (cross-referencing domain trust tiers with linguistic flags)
+- Provides a final **AI Deep Analysis** sanity check using a dual-engine AI approach (On-Device Gemini Nano + Cloud Gemini API fallback)
 
 ---
 
@@ -63,8 +65,8 @@ JobScamExtention/
 | Property | Value |
 |---|---|
 | Manifest Version | V3 |
-| Permissions | `activeTab`, `scripting` |
-| Detection Method | Heuristic NLP + domain registry checks |
+| Permissions | `activeTab`, `scripting`, `storage` |
+| Detection Method | Corroborated Heuristic NLP + RDAP Domain Checks + Generative AI |
 | Language | JavaScript |
 
 ---
