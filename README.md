@@ -13,7 +13,7 @@ Job scam postings are increasingly sophisticated. Shield: Deep Scan analyzes job
 - Unverified or newly registered employer domains (via official ICANN RDAP)
 - Advanced evasion techniques like **Emoji Flooding** and **Ghost Text** (invisible Unicode steganography)
 - Analyzes context using a **Corroborated Threat Intelligence** engine (cross-referencing domain trust tiers with linguistic flags)
-- Provides a final **AI Deep Analysis** sanity check using a dual-engine AI approach (On-Device Gemini Nano + Cloud Gemini API fallback)
+- Provides a final **AI Deep Analysis** sanity check using the Cloud Gemini API
 
 ---
 

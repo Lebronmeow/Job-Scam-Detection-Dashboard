@@ -59,8 +59,7 @@ flowchart TD
     L4 --> M["Final Risk Score (0-100%)"]
     M --> N["Render UI: Score Ring + Flags + Trust Tier"]
     N --> O["PHASE 4: AI Deep Analysis"]
-    O --> O1["Attempt 1: Local On-Device Gemini Nano"]
-    O --> O2["Fallback: Cloud Gemini API Free Tier"]
+    O --> O1["Cloud Gemini API"]
 ```
 
 ---
@@ -159,18 +158,13 @@ Trust Score is **earned** by the job poster through verifiable actions. It direc
 
 ---
 
-## Phase 4 — AI Deep Analysis (Dual-Engine) 🧠
+## Phase 4 — AI Deep Analysis 🧠
 
 After the heuristic engine calculates the final score and renders the UI, Shield performs a **semantic NLP scan** of the job description text using generative AI to detect subtle psychological manipulation patterns.
 
-### Dual-Engine Architecture
-To ensure 100% availability while perfectly respecting user privacy:
-1. **Engine A: Gemini Nano (On-Device)**
-   - Leverages Chrome 127+ Built-in AI via the Prompt API (`aiOriginTrial.languageModel`).
-   - **Cost:** Free
-   - **Privacy:** 100% Local (Job text never leaves your GPU/memory).
-2. **Engine B: Gemini API (Cloud Fallback)**
-   - Leverages `gemini-2.5-flash` via personal API Key if Nano isn't available/downloaded.
+### Cloud Integration
+1. **Gemini API**
+   - Leverages `gemini-2.5-flash` via personal API Key.
    - **Configuration:** Keys are supplied via the extension's Settings Panel.
 
 *(Note: The AI Verdict provides explanatory insight and context. It acts as a qualitative companion confirming or debunking the quantitative 20-parameter score).*
