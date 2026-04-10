@@ -221,10 +221,15 @@ async function executeLiveScan() {
 
     if (officialDomain !== "") {
         try {
-            const whoisRes = await fetch(`https://networkcalc.com/api/dns/whois/${officialDomain}`);
-            const whoisData = await whoisRes.json();
-            if (whoisData && whoisData.whois && whoisData.whois.creation_date) {
-                const ageInDays = (new Date() - new Date(whoisData.whois.creation_date)) / (1000 * 60 * 60 * 24);
+            // Replaced unreliable networkcalc API with official IANA RDAP standard
+            const rdapRes = await fetch(`https://rdap.org/domain/${officialDomain}`);
+            const rdapData = await rdapRes.json();
+            
+            // RDAP stores dates in an events array
+            const regEvent = rdapData.events?.find(e => e.eventAction === "registration" || e.eventAction === "Registration");
+            
+            if (regEvent && regEvent.eventDate) {
+                const ageInDays = (new Date() - new Date(regEvent.eventDate)) / (1000 * 60 * 60 * 24);
                 if (ageInDays < 90) {
                     rawThreats.push({ penalty: 35, message: `Domain registered ${Math.floor(ageInDays)} days ago — very new.`, paramId: 5, severity: "crit", category: "verification" });
                     setParam(5, "fail");
@@ -239,11 +244,11 @@ async function executeLiveScan() {
                 }
             } else {
                 setParam(5, "warn");
-                flags.push("WARN: [P5] WHOIS data hidden by registrar.");
+                flags.push("WARN: [P5] Registration date hidden by domain registrar.");
             }
         } catch (e) {
             setParam(5, "warn");
-            flags.push("WARN: [P5] WHOIS lookup timed out.");
+            flags.push("WARN: [P5] Domain registry lookup failed.");
         }
     } else {
         await delay(200);
