@@ -711,12 +711,12 @@ const AI_SYSTEM_PROMPT = `You are a cybersecurity expert specialized in job scam
 
 Rules:
 - Be concise (3-5 sentences max)
-- Start with a one-word verdict: SAFE, SUSPICIOUS, or DANGEROUS
+- Do NOT start with a single-word verdict. Start with a conversational, natural opening (e.g., "This listing appears safe because..." or "I would be highly cautious with this listing...").
 - Explain what specific patterns you see (or don't see)
 - If safe, briefly explain why
 - If suspicious/dangerous, explain what the user should watch out for
 - Never use markdown formatting, just plain text
-- Be direct and actionable — this protects real people from real scams`;
+- Be direct and actionable`;
 
 function buildPrompt(jobText, heuristicScore, heuristicFlags, companyName) {
     const heuristicContext = heuristicFlags.length > 0
@@ -800,7 +800,7 @@ async function runWithGeminiAPI(apiKey, prompt, aiOutput) {
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: {
                     temperature: 0.3,
-                    maxOutputTokens: 300
+                    maxOutputTokens: 800
                 }
             })
         }
@@ -824,7 +824,7 @@ async function runWithGeminiAPI(apiKey, prompt, aiOutput) {
     let i = 0;
     await new Promise((resolve) => {
         const typeTimer = setInterval(() => {
-            i += 3;
+            i += 8;
             aiOutput.textContent = text.substring(0, i);
             if (i >= text.length) {
                 clearInterval(typeTimer);
