@@ -7,6 +7,15 @@ import models
 import schemas
 from database import engine, get_db
 
+# Try to import the injector script for remote execution
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    from inject_real_data import inject
+except ImportError:
+    inject = None
+
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="ShieldDB API")
@@ -42,6 +51,16 @@ def get_stats(db: Session = Depends(get_db)):
     safe = db.query(models.Job).join(models.Score).filter(models.Score.final_score < 31).count()
     risky = db.query(models.Job).join(models.Score).filter(models.Score.final_score >= 61).count()
     return {"total": total, "safe": safe, "risky": risky}
+
+@app.get("/api/seed")
+def seed_database():
+    """Trigger the real-data injection script remotely."""
+    if inject:
+        # Run the injection synchronously
+        inject()
+        return {"status": "success", "message": "Database seeded successfully with 3 real-world jobs."}
+    else:
+        raise HTTPException(status_code=500, detail="Injection script not found or could not be loaded.")
 
 @app.get("/api/jobs/{job_id}", response_model=schemas.JobOut)
 def get_job(job_id: int, db: Session = Depends(get_db)):
