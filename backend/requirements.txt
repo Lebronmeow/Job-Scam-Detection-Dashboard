@@ -1,0 +1,10 @@
+fastapi[standard]
+sqlalchemy
+psycopg2-binary
+playwright
+beautifulsoup4
+google-generativeai
+python-dotenv
+uvicorn
+pydantic
+requests

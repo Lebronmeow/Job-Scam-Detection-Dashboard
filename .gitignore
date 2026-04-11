@@ -1,0 +1,17 @@
+# Environments
+backend/venv/
+.env
+
+# Dependencies
+frontend/node_modules/
+backend/__pycache__/
+*.pyc
+
+# Next.js build output
+frontend/.next/
+
+# Databases
+sql_app.db
+
+# OS files
+.DS_Store
