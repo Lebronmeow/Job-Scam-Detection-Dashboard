@@ -9,6 +9,7 @@ uvicorn
 pydantic
 requests
 passlib[bcrypt]
+bcrypt
 pyjwt
 python-multipart
 sse-starlette

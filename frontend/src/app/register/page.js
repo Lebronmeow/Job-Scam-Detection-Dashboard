@@ -6,8 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sparkles, Eye, EyeOff } from "lucide-react";
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -20,16 +23,36 @@ export default function RegisterPage() {
     setSuccess("");
     setIsLoading(true);
 
-    await new Promise(r => setTimeout(r, 400));
-
-    if (!email || !password) {
+    if (!username || !email || !password) {
       setError("Please fill in all fields.");
-    } else if (password.length < 4) {
+      setIsLoading(false);
+      return;
+    }
+    if (password.length < 4) {
       setError("Password must be at least 4 characters.");
-    } else {
-      localStorage.setItem("registered_user", JSON.stringify({ email, password }));
-      setSuccess("Registration successful! Redirecting to login...");
-      setTimeout(() => { window.location.href = "/login"; }, 1500);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.detail || "Registration failed. Please try again.");
+      } else {
+        setSuccess("Registration successful! Redirecting to login...");
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 1500);
+      }
+    } catch (err) {
+      setError("Could not connect to the server. Please try again.");
     }
 
     setIsLoading(false);
@@ -51,6 +74,20 @@ export default function RegisterPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="username" className="text-sm font-medium">Username</Label>
+            <Input
+              id="username"
+              type="text"
+              placeholder="johndoe"
+              value={username}
+              autoComplete="off"
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              className="h-12 bg-background border-border/60 focus:border-primary"
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="email" className="text-sm font-medium">Email</Label>
             <Input

@@ -274,14 +274,31 @@ export default function LoginPage() {
     setError("");
     setIsLoading(true);
 
-    await new Promise(r => setTimeout(r, 400));
+    const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-    if (email === "admin@shield.com" && password === "admin123") {
-      localStorage.setItem("token", "hardcoded-admin-token");
-      localStorage.setItem("user", JSON.stringify({ email, role: "admin" }));
-      window.location.href = "/";
-    } else {
-      setError("Invalid email or password. Try admin@shield.com / admin123");
+    try {
+      // Backend expects OAuth2 form data with "username" field (which is the email)
+      const formData = new URLSearchParams();
+      formData.append("username", email);
+      formData.append("password", password);
+
+      const res = await fetch(`${API}/api/auth/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData.toString(),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.detail || "Invalid email or password.");
+      } else {
+        localStorage.setItem("token", data.access_token);
+        localStorage.setItem("user", JSON.stringify({ email }));
+        window.location.href = "/";
+      }
+    } catch (err) {
+      setError("Could not connect to the server. Please try again.");
     }
 
     setIsLoading(false);
