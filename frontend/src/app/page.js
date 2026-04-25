@@ -123,7 +123,7 @@ export default function Home() {
   const [selectedJob, setSelectedJob] = useState(null);
   const [stats, setStats] = useState({ total: 0, safe: 0, caution: 0, risky: 0 });
   const [loading, setLoading] = useState(false);
-  const [toolRevealed, setToolRevealed] = useState(false);
+
   const [dialIndex, setDialIndex] = useState(0);
   const [dialProgress, setDialProgress] = useState(0);
   const [dialRotation, setDialRotation] = useState(0);
@@ -131,7 +131,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('jobs'); // 'jobs' or 'internships'
   const [searchQuery, setSearchQuery] = useState('');
 
-  const toolRef = useRef(null);
+
   const dialRef = useRef(null);
   const introRef = useRef(null);
 
@@ -172,17 +172,7 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRole, activeLocation]);
 
-  /* ─── Tool reveal observer ─── */
-  useEffect(() => {
-    const el = toolRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) setToolRevealed(true); },
-      { threshold: 0.1 }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
+
 
   /* ─── Dial scroll listener (scroll-driven rotation) ─── */
   useEffect(() => {
@@ -574,7 +564,7 @@ export default function Home() {
       </section>
 
       {/* ═══════════ SCENE 6: JOB TOOL ═══════════ */}
-      <section className="section section--cream" id="tool" ref={toolRef}>
+      <section className="section section--cream" id="tool">
         <div className="section-inner">
           <div className="tool-section">
             <div className="tool-header">
@@ -630,29 +620,27 @@ export default function Home() {
               </div>
             </Reveal>
 
-            {toolRevealed && (
-              <>
-                {loading && jobs.length === 0 ? (
-                  <div className="empty-state">Loading...</div>
-                ) : (() => {
-                    const query = searchQuery.toLowerCase();
-                    const filteredJobs = jobs.filter(job => {
-                      const isIntern = job.title.toLowerCase().includes('intern') || (job.role && job.role.toLowerCase().includes('intern'));
-                      const tabMatch = activeTab === 'internships' ? isIntern : !isIntern;
-                      const textMatch = job.title.toLowerCase().includes(query) || job.company.toLowerCase().includes(query) || (job.location && job.location.toLowerCase().includes(query));
-                      return tabMatch && textMatch;
-                    });
-                    
-                    return filteredJobs.length === 0 ? (
-                      <div className="empty-state">No {activeTab} found for this position matching your search.</div>
-                    ) : (
-                      <Reveal delay={2}>
-                        <h3 className="job-list-heading">Verified Roles <span className="job-list-count">({filteredJobs.length} listings)</span></h3>
-                        <div className="results-grid">
-                          {/* List */}
-                          <div className="job-list-col">
-                            <div className="job-list custom-scrollbar">
-                              {filteredJobs.map((job) => {
+            {loading && jobs.length === 0 ? (
+              <div className="empty-state">Loading jobs...</div>
+            ) : (() => {
+                const query = searchQuery.toLowerCase();
+                const filteredJobs = jobs.filter(job => {
+                  const isIntern = job.title.toLowerCase().includes('intern') || (job.role && job.role.toLowerCase().includes('intern'));
+                  const tabMatch = activeTab === 'internships' ? isIntern : !isIntern;
+                  const textMatch = job.title.toLowerCase().includes(query) || job.company.toLowerCase().includes(query) || (job.location && job.location.toLowerCase().includes(query));
+                  return tabMatch && textMatch;
+                });
+                
+                return filteredJobs.length === 0 ? (
+                  <div className="empty-state">No {activeTab} found for this position matching your search.</div>
+                ) : (
+                  <div className="job-results-fade-in">
+                    <h3 className="job-list-heading">Verified Roles <span className="job-list-count">({filteredJobs.length} listings)</span></h3>
+                    <div className="results-grid">
+                      {/* List */}
+                      <div className="job-list-col">
+                        <div className="job-list custom-scrollbar">
+                          {filteredJobs.map((job) => {
                             const info = si(job.score);
                             const active = selectedJob?.id === job.id;
                             return (
@@ -752,11 +740,9 @@ export default function Home() {
                         ) : null}
                       </div>
                     </div>
-                  </Reveal>
+                  </div>
                 );
-                })()}
-              </>
-            )}
+            })()}
           </div>
         </div>
       </section>
