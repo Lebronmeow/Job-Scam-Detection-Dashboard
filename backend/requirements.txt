@@ -13,3 +13,5 @@ bcrypt
 pyjwt
 python-multipart
 sse-starlette
+g4f
+PyPDF2

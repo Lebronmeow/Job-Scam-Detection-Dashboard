@@ -131,6 +131,19 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('jobs'); // 'jobs' or 'internships'
   const [searchQuery, setSearchQuery] = useState('');
 
+  /* ─── CV Builder State ─── */
+  const [cvModalOpen, setCvModalOpen] = useState(false);
+  const [cvStep, setCvStep] = useState(1); // 1=form, 2=generating, 3=preview
+  const [cvData, setCvData] = useState(null);
+  const [cvGenerating, setCvGenerating] = useState(false);
+  const [cvError, setCvError] = useState('');
+  const [cvProfile, setCvProfile] = useState({
+    name: '', email: '', phone: '', summary: '',
+    skills: '', existingCV: '',
+    experience: [{ title: '', company: '', duration: '', description: '' }],
+    education: [{ degree: '', institution: '', year: '' }]
+  });
+
 
   const dialRef = useRef(null);
   const introRef = useRef(null);
@@ -140,9 +153,9 @@ export default function Home() {
   const PAGE_SIZE = 100;
 
   useEffect(() => {
-    fetch(`${API}/api/roles`).then(r => r.json()).then(setRoles).catch(() => {});
-    fetch(`${API}/api/locations`).then(r => r.json()).then(setLocations).catch(() => {});
-    fetch(`${API}/api/stats`).then(r => r.json()).then(setStats).catch(() => {});
+    fetch(`${API}/api/roles`).then(r => r.json()).then(setRoles).catch(() => { });
+    fetch(`${API}/api/locations`).then(r => r.json()).then(setLocations).catch(() => { });
+    fetch(`${API}/api/stats`).then(r => r.json()).then(setStats).catch(() => { });
   }, []);
 
   // Pre-fetch jobs immediately and on filter changes
@@ -162,14 +175,14 @@ export default function Home() {
         setHasMore(data.length === PAGE_SIZE);
         if (reset) setSelectedJob(data[0] || null);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, [activeRole, activeLocation, jobs]);
 
   // Fetch on mount + when filters change
   useEffect(() => {
     fetchJobs(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRole, activeLocation]);
 
 
@@ -249,6 +262,116 @@ export default function Home() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     window.location.href = "/login";
+  };
+
+  /* ─── CV Builder Functions ─── */
+  // Load saved profile from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('cv_profile');
+      if (saved) setCvProfile(JSON.parse(saved));
+    } catch { }
+  }, []);
+
+  const openCvModal = () => {
+    setCvModalOpen(true);
+    setCvStep(1);
+    setCvData(null);
+    setCvError('');
+  };
+
+  const closeCvModal = () => {
+    setCvModalOpen(false);
+    setCvStep(1);
+    setCvError('');
+  };
+
+  const updateProfile = (field, value) => {
+    setCvProfile(prev => ({ ...prev, [field]: value }));
+  };
+
+  const addExperience = () => {
+    setCvProfile(prev => ({
+      ...prev,
+      experience: [...prev.experience, { title: '', company: '', duration: '', description: '' }]
+    }));
+  };
+
+  const updateExperience = (index, field, value) => {
+    setCvProfile(prev => {
+      const exp = [...prev.experience];
+      exp[index] = { ...exp[index], [field]: value };
+      return { ...prev, experience: exp };
+    });
+  };
+
+  const removeExperience = (index) => {
+    setCvProfile(prev => ({
+      ...prev,
+      experience: prev.experience.filter((_, i) => i !== index)
+    }));
+  };
+
+  const addEducation = () => {
+    setCvProfile(prev => ({
+      ...prev,
+      education: [...prev.education, { degree: '', institution: '', year: '' }]
+    }));
+  };
+
+  const updateEducation = (index, field, value) => {
+    setCvProfile(prev => {
+      const edu = [...prev.education];
+      edu[index] = { ...edu[index], [field]: value };
+      return { ...prev, education: edu };
+    });
+  };
+
+  const removeEducation = (index) => {
+    setCvProfile(prev => ({
+      ...prev,
+      education: prev.education.filter((_, i) => i !== index)
+    }));
+  };
+
+  const generateCV = async () => {
+    if (!cvProfile.name.trim()) { setCvError('Name is required'); return; }
+    if (!cvProfile.email.trim()) { setCvError('Email is required'); return; }
+    if (!cvProfile.skills.trim() && !cvProfile.existingCV.trim()) { setCvError('Please add skills or paste your existing CV'); return; }
+
+    // Save profile to localStorage
+    localStorage.setItem('cv_profile', JSON.stringify(cvProfile));
+
+    setCvError('');
+    setCvStep(2);
+    setCvGenerating(true);
+
+    try {
+      const res = await fetch(`${API}/api/cv/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: selectedJob.id,
+          user_profile: cvProfile
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Generation failed');
+      }
+      const data = await res.json();
+      setCvData(data.cv);
+      setCvStep(3);
+    } catch (e) {
+      setCvError(e.message || 'Something went wrong');
+      setCvStep(1);
+    } finally {
+      setCvGenerating(false);
+    }
+  };
+
+  const printCV = () => {
+    window.print();
   };
 
   /* ─── Loading state while auth is checking ─── */
@@ -338,7 +461,7 @@ export default function Home() {
               <Reveal delay={2}>
                 <div className="problem-card">
                   <div className="problem-icon">
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>
                   </div>
                   <h3 className="problem-stat"><Counter to={73} suffix="%" /></h3>
                   <p className="problem-desc">of scam listings use<br /><strong>fake email domains</strong></p>
@@ -347,7 +470,7 @@ export default function Home() {
               <Reveal delay={3}>
                 <div className="problem-card">
                   <div className="problem-icon">
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="12" x="2" y="6" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" /></svg>
                   </div>
                   <h3 className="problem-stat"><Counter to={45} suffix="%" /></h3>
                   <p className="problem-desc">demand <strong>upfront fees</strong><br />for &quot;processing&quot;</p>
@@ -356,7 +479,7 @@ export default function Home() {
               <Reveal delay={4}>
                 <div className="problem-card">
                   <div className="problem-icon">
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 2H8a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Z"/><circle cx="12" cy="8" r="2"/><path d="M15 13a3 3 0 0 0-6 0"/></svg>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 2H8a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Z" /><circle cx="12" cy="8" r="2" /><path d="M15 13a3 3 0 0 0-6 0" /></svg>
                   </div>
                   <h3 className="problem-stat"><Counter to={62} suffix="%" /></h3>
                   <p className="problem-desc">request <strong>Aadhaar/PAN</strong><br />before any interview</p>
@@ -417,7 +540,7 @@ export default function Home() {
               // Compute shortest distance around the circular array of length 20
               let distance = Math.abs(dialIndex - i);
               if (distance > THREAT_PARAMS.length / 2) {
-                 distance = THREAT_PARAMS.length - distance;
+                distance = THREAT_PARAMS.length - distance;
               }
               const opacity = isActive ? 1 : distance <= 3 ? 0.6 : 0.35;
               return (
@@ -596,7 +719,7 @@ export default function Home() {
                     {roles.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                   <div className="select-chevron">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
                   </div>
                 </div>
                 <div className="select-wrap">
@@ -610,7 +733,7 @@ export default function Home() {
                     {locations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
                   </select>
                   <div className="select-chevron">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
                   </div>
                 </div>
                 <div className="search-wrap">
@@ -623,129 +746,367 @@ export default function Home() {
             {loading && jobs.length === 0 ? (
               <div className="empty-state">Loading jobs...</div>
             ) : (() => {
-                const query = searchQuery.toLowerCase();
-                const filteredJobs = jobs.filter(job => {
-                  const isIntern = job.title.toLowerCase().includes('intern') || (job.role && job.role.toLowerCase().includes('intern'));
-                  const tabMatch = activeTab === 'internships' ? isIntern : !isIntern;
-                  const textMatch = job.title.toLowerCase().includes(query) || job.company.toLowerCase().includes(query) || (job.location && job.location.toLowerCase().includes(query));
-                  return tabMatch && textMatch;
-                });
-                
-                return filteredJobs.length === 0 ? (
-                  <div className="empty-state">No {activeTab} found for this position matching your search.</div>
-                ) : (
-                  <div className="job-results-fade-in">
-                    <h3 className="job-list-heading">Verified Roles <span className="job-list-count">({filteredJobs.length} listings)</span></h3>
-                    <div className="results-grid">
-                      {/* List */}
-                      <div className="job-list-col">
-                        <div className="job-list custom-scrollbar">
-                          {filteredJobs.map((job) => {
-                            const info = si(job.score);
-                            const active = selectedJob?.id === job.id;
-                            return (
-                              <div key={job.id} onClick={() => setSelectedJob(job)} className={`job-card ${active ? "job-card-active" : ""}`}>
-                                <div className="job-card-inner">
-                                  <div className={`score-ring ${info.cls}`}>
-                                    <span className="score-num">{job.score ? `${Math.round(job.score.final_score)}%` : "—"}</span>
-                                  </div>
-                                  <div className="job-card-text">
-                                    <p className="job-card-title">{job.title}</p>
-                                    <p className="job-card-company">{job.company}{job.location && <span className="job-card-location"> · 📍 {job.location}</span>}</p>
-                                  </div>
-                                  <div className={`job-card-badge badge-${info.cls}`}>
-                                    {info.label}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {hasMore && (
-                          <button className="load-more-btn" onClick={() => fetchJobs(false)} disabled={loading}>
-                            {loading ? 'Loading...' : 'Load More Jobs'}
-                          </button>
-                        )}
-                      </div>
+              const query = searchQuery.toLowerCase();
+              const filteredJobs = jobs.filter(job => {
+                const isIntern = job.title.toLowerCase().includes('intern') || (job.role && job.role.toLowerCase().includes('intern'));
+                const tabMatch = activeTab === 'internships' ? isIntern : !isIntern;
+                const textMatch = job.title.toLowerCase().includes(query) || job.company.toLowerCase().includes(query) || (job.location && job.location.toLowerCase().includes(query));
+                return tabMatch && textMatch;
+              });
 
-                      {/* Detail */}
-                      <div className="detail-col">
-                        {selectedJob ? (
-                          <div className="detail-panel">
-                            <div className="detail-header">
-                              <div className="detail-header-text">
-                                <h2 className="detail-title">{selectedJob.title}</h2>
-                                <div className="detail-meta">
-                                  <span className="detail-company">{selectedJob.company}</span>
-                                  {selectedJob.location && <span className="detail-location-badge">📍 {selectedJob.location}</span>}
-                                  {selectedJob.url && <a href={selectedJob.url} target="_blank" rel="noreferrer" className="detail-link">View Original ↗</a>}
+              return filteredJobs.length === 0 ? (
+                <div className="empty-state">No {activeTab} found for this position matching your search.</div>
+              ) : (
+                <div className="job-results-fade-in">
+                  <h3 className="job-list-heading">Verified Roles <span className="job-list-count">({filteredJobs.length} listings)</span></h3>
+                  <div className="results-grid">
+                    {/* List */}
+                    <div className="job-list-col">
+                      <div className="job-list custom-scrollbar">
+                        {filteredJobs.map((job) => {
+                          const info = si(job.score);
+                          const active = selectedJob?.id === job.id;
+                          return (
+                            <div key={job.id} onClick={() => setSelectedJob(job)} className={`job-card ${active ? "job-card-active" : ""}`}>
+                              <div className="job-card-inner">
+                                <div className={`score-ring ${info.cls}`}>
+                                  <span className="score-num">{job.score ? `${Math.round(job.score.final_score)}%` : "—"}</span>
+                                </div>
+                                <div className="job-card-text">
+                                  <p className="job-card-title">{job.title}</p>
+                                  <p className="job-card-company">{job.company}{job.location && <span className="job-card-location"> · 📍 {job.location}</span>}</p>
+                                </div>
+                                <div className={`job-card-badge badge-${info.cls}`}>
+                                  {info.label}
                                 </div>
                               </div>
-                              {selectedJob.score && (() => {
-                                const info = si(selectedJob.score);
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {hasMore && (
+                        <button className="load-more-btn" onClick={() => fetchJobs(false)} disabled={loading}>
+                          {loading ? 'Loading...' : 'Load More Jobs'}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Detail */}
+                    <div className="detail-col">
+                      {selectedJob ? (
+                        <div className="detail-panel">
+                          <div className="detail-header">
+                            <div className="detail-header-text">
+                              <h2 className="detail-title">{selectedJob.title}</h2>
+                              <div className="detail-meta">
+                                <span className="detail-company">{selectedJob.company}</span>
+                                {selectedJob.location && <span className="detail-location-badge">📍 {selectedJob.location}</span>}
+                                {selectedJob.url && <a href={selectedJob.url} target="_blank" rel="noreferrer" className="detail-link">View Original ↗</a>}
+                                <button className="tailor-cv-btn" onClick={openCvModal} id="tailor-cv-btn">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
+                                  Tailor CV
+                                </button>
+                              </div>
+                            </div>
+                            {selectedJob.score && (() => {
+                              const info = si(selectedJob.score);
+                              return (
+                                <div className="detail-score-wrap">
+                                  <div className={`score-ring big ${info.cls}`}><span className="score-num">{Math.round(selectedJob.score.final_score)}%</span></div>
+                                  <span className="detail-score-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>SCAM SCORE <span style={{ fontSize: '0.7rem' }}>?</span></span>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                          {selectedJob.description && (
+                            <div className="detail-description">
+                              {selectedJob.description}
+                            </div>
+                          )}
+                          {selectedJob.score && (
+                            <div className="detail-body">
+                              {(() => {
+                                const v = verd(selectedJob.score);
+                                if (!v) return null;
                                 return (
-                                  <div className="detail-score-wrap">
-                                    <div className={`score-ring big ${info.cls}`}><span className="score-num">{Math.round(selectedJob.score.final_score)}%</span></div>
-                                    <span className="detail-score-label" style={{display: 'flex', alignItems: 'center', gap: '4px'}}>SCAM SCORE <span style={{fontSize: '0.7rem'}}>?</span></span>
+                                  <div className={`verdict-glass ${v.bg}`}>
+                                    <div className={`verdict-glass-icon ${v.bg}-icon`}>{v.icon}</div>
+                                    <div>
+                                      <p className={`verdict-glass-title ${v.c}`}>{v.t}</p>
+                                      <p className="verdict-glass-desc">{v.d}</p>
+                                    </div>
                                   </div>
                                 );
                               })()}
-                            </div>
-                            {selectedJob.description && (
-                              <div className="detail-description">
-                                {selectedJob.description}
-                              </div>
-                            )}
-                            {selectedJob.score && (
-                              <div className="detail-body">
-                                {(() => {
-                                  const v = verd(selectedJob.score);
-                                  if (!v) return null;
-                                  return (
-                                    <div className={`verdict-glass ${v.bg}`}>
-                                      <div className={`verdict-glass-icon ${v.bg}-icon`}>{v.icon}</div>
-                                      <div>
-                                        <p className={`verdict-glass-title ${v.c}`}>{v.t}</p>
-                                        <p className="verdict-glass-desc">{v.d}</p>
+                              <div>
+                                <h4 className="signals-heading">THREAT SIGNALS ({selectedJob.score.flags.length})</h4>
+                                <div className="signals-list">
+                                  {selectedJob.score.flags.map((raw, i) => {
+                                    let sev = "warn", lbl = "WARN", text = raw;
+                                    if (raw.startsWith("CRIT:")) { sev = "crit"; lbl = "CRIT"; text = raw.slice(6); }
+                                    else if (raw.startsWith("SAFE:")) { sev = "safe"; lbl = "SAFE"; text = raw.slice(6); }
+                                    else if (raw.startsWith("WARN:")) { text = raw.slice(6); }
+                                    return (
+                                      <div key={i} className={`flag-pill flag-${sev}`}>
+                                        <span className="flag-badge">{lbl}</span>
+                                        <span className="flag-text">{text}</span>
                                       </div>
+                                    );
+                                  })}
+                                  {selectedJob.score.flags.length === 0 && (
+                                    <div className="flag-pill flag-safe">
+                                      <span className="flag-badge">SAFE</span>
+                                      <span className="flag-text">Verified globally as {selectedJob.company}</span>
                                     </div>
-                                  );
-                                })()}
-                                <div>
-                                  <h4 className="signals-heading">THREAT SIGNALS ({selectedJob.score.flags.length})</h4>
-                                  <div className="signals-list">
-                                    {selectedJob.score.flags.map((raw, i) => {
-                                      let sev = "warn", lbl = "WARN", text = raw;
-                                      if (raw.startsWith("CRIT:")) { sev = "crit"; lbl = "CRIT"; text = raw.slice(6); }
-                                      else if (raw.startsWith("SAFE:")) { sev = "safe"; lbl = "SAFE"; text = raw.slice(6); }
-                                      else if (raw.startsWith("WARN:")) { text = raw.slice(6); }
-                                      return (
-                                        <div key={i} className={`flag-pill flag-${sev}`}>
-                                          <span className="flag-badge">{lbl}</span>
-                                          <span className="flag-text">{text}</span>
-                                        </div>
-                                      );
-                                    })}
-                                    {selectedJob.score.flags.length === 0 && (
-                                      <div className="flag-pill flag-safe">
-                                        <span className="flag-badge">SAFE</span>
-                                        <span className="flag-text">Verified globally as {selectedJob.company}</span>
-                                      </div>
-                                    )}
-                                  </div>
+                                  )}
                                 </div>
                               </div>
-                            )}
-                          </div>
-                        ) : null}
-                      </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
-                );
+                </div>
+              );
             })()}
           </div>
         </div>
       </section>
+
+      {/* ═══════════ CV BUILDER MODAL ═══════════ */}
+      {cvModalOpen && (
+        <div className="cv-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeCvModal(); }}>
+          <div className="cv-modal">
+            <button className="cv-modal-close" onClick={closeCvModal}>✕</button>
+
+            {/* Step Indicator */}
+            <div className="cv-steps">
+              <div className={`cv-step-dot ${cvStep >= 1 ? 'active' : ''}`}><span>1</span><p>Your Info</p></div>
+              <div className="cv-step-line"><div className={`cv-step-line-fill ${cvStep >= 2 ? 'filled' : ''}`} /></div>
+              <div className={`cv-step-dot ${cvStep >= 2 ? 'active' : ''}`}><span>2</span><p>Generating</p></div>
+              <div className="cv-step-line"><div className={`cv-step-line-fill ${cvStep >= 3 ? 'filled' : ''}`} /></div>
+              <div className={`cv-step-dot ${cvStep >= 3 ? 'active' : ''}`}><span>3</span><p>Preview</p></div>
+            </div>
+
+            {/* Job Context */}
+            {selectedJob && (
+              <div className="cv-job-context">
+                <span className="cv-job-context-label">TAILORING FOR</span>
+                <span className="cv-job-context-title">{selectedJob.title}</span>
+                <span className="cv-job-context-company">at {selectedJob.company}</span>
+              </div>
+            )}
+
+            {/* Step 1: Form */}
+            {cvStep === 1 && (
+              <div className="cv-form-step">
+                {cvError && <div className="cv-error">{cvError}</div>}
+
+                {/* Paste Existing CV */}
+                <div className="cv-form-section">
+                  <label className="cv-form-label">📄 Paste Existing CV (optional — we'll extract info)</label>
+                  <textarea
+                    className="cv-textarea"
+                    placeholder="Paste your existing CV/resume text here and we'll tailor it for this job..."
+                    value={cvProfile.existingCV}
+                    onChange={(e) => updateProfile('existingCV', e.target.value)}
+                    rows={4}
+                  />
+                </div>
+
+                <div className="cv-form-divider"><span>OR FILL IN YOUR DETAILS</span></div>
+
+                {/* Personal Info */}
+                <div className="cv-form-section">
+                  <label className="cv-form-label">Personal Information</label>
+                  <div className="cv-form-row">
+                    <input className="cv-input" placeholder="Full Name *" value={cvProfile.name} onChange={(e) => updateProfile('name', e.target.value)} />
+                    <input className="cv-input" placeholder="Email *" value={cvProfile.email} onChange={(e) => updateProfile('email', e.target.value)} />
+                  </div>
+                  <div className="cv-form-row">
+                    <input className="cv-input" placeholder="Phone" value={cvProfile.phone} onChange={(e) => updateProfile('phone', e.target.value)} />
+                  </div>
+                </div>
+
+                {/* Summary */}
+                <div className="cv-form-section">
+                  <label className="cv-form-label">Professional Summary</label>
+                  <textarea
+                    className="cv-textarea"
+                    placeholder="Brief professional summary highlighting your key strengths..."
+                    value={cvProfile.summary}
+                    onChange={(e) => updateProfile('summary', e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                {/* Skills */}
+                <div className="cv-form-section">
+                  <label className="cv-form-label">Skills (comma-separated) *</label>
+                  <input className="cv-input" placeholder="Python, React, Project Management, Data Analysis..." value={cvProfile.skills} onChange={(e) => updateProfile('skills', e.target.value)} />
+                </div>
+
+                {/* Experience */}
+                <div className="cv-form-section">
+                  <label className="cv-form-label">Experience</label>
+                  {cvProfile.experience.map((exp, i) => (
+                    <div key={i} className="cv-entry-card">
+                      <div className="cv-form-row">
+                        <input className="cv-input" placeholder="Job Title" value={exp.title} onChange={(e) => updateExperience(i, 'title', e.target.value)} />
+                        <input className="cv-input" placeholder="Company" value={exp.company} onChange={(e) => updateExperience(i, 'company', e.target.value)} />
+                      </div>
+                      <div className="cv-form-row">
+                        <input className="cv-input" placeholder="Duration (e.g. Jan 2022 - Present)" value={exp.duration} onChange={(e) => updateExperience(i, 'duration', e.target.value)} />
+                        {cvProfile.experience.length > 1 && <button className="cv-remove-btn" onClick={() => removeExperience(i)}>Remove</button>}
+                      </div>
+                      <textarea className="cv-textarea" placeholder="Key responsibilities and achievements..." value={exp.description} onChange={(e) => updateExperience(i, 'description', e.target.value)} rows={2} />
+                    </div>
+                  ))}
+                  <button className="cv-add-btn" onClick={addExperience}>+ Add Experience</button>
+                </div>
+
+                {/* Education */}
+                <div className="cv-form-section">
+                  <label className="cv-form-label">Education</label>
+                  {cvProfile.education.map((edu, i) => (
+                    <div key={i} className="cv-entry-card">
+                      <div className="cv-form-row">
+                        <input className="cv-input" placeholder="Degree" value={edu.degree} onChange={(e) => updateEducation(i, 'degree', e.target.value)} />
+                        <input className="cv-input" placeholder="Institution" value={edu.institution} onChange={(e) => updateEducation(i, 'institution', e.target.value)} />
+                      </div>
+                      <div className="cv-form-row">
+                        <input className="cv-input" placeholder="Year" value={edu.year} onChange={(e) => updateEducation(i, 'year', e.target.value)} />
+                        {cvProfile.education.length > 1 && <button className="cv-remove-btn" onClick={() => removeEducation(i)}>Remove</button>}
+                      </div>
+                    </div>
+                  ))}
+                  <button className="cv-add-btn" onClick={addEducation}>+ Add Education</button>
+                </div>
+
+                <button className="cv-generate-btn" onClick={generateCV}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
+                  Generate Tailored CV
+                </button>
+              </div>
+            )}
+
+            {/* Step 2: Generating */}
+            {cvStep === 2 && (
+              <div className="cv-generating-step">
+                <div className="cv-spinner"></div>
+                <h3>Crafting your tailored CV...</h3>
+                <p>Our AI is analyzing the job description and optimizing your resume. This may take 15-30 seconds.</p>
+                <div className="cv-gen-progress">
+                  <div className="cv-gen-progress-bar"></div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Preview */}
+            {cvStep === 3 && cvData && (
+              <div className="cv-preview-step">
+                <div className="cv-preview-actions">
+                  <button className="cv-download-btn" onClick={printCV}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                    Download PDF
+                  </button>
+                  <button className="cv-regen-btn" onClick={() => setCvStep(1)}>← Edit & Regenerate</button>
+                </div>
+                {cvData._generatedBy === 'ai' && <div className="cv-ai-badge">✨ AI-Tailored</div>}
+                {cvData._generatedBy === 'template' && <div className="cv-template-badge">📋 Template-Based (AI unavailable)</div>}
+
+                {/* Printable CV */}
+                <div className="cv-printable" id="cv-printable">
+                  <div className="cv-print-header">
+                    <h1 className="cv-print-name">{cvData.name}</h1>
+                    <div className="cv-print-contact">
+                      {cvData.contact?.email && <span>{cvData.contact.email}</span>}
+                      {cvData.contact?.phone && <span>{cvData.contact.phone}</span>}
+                      {cvData.contact?.location && <span>{cvData.contact.location}</span>}
+                    </div>
+                  </div>
+
+                  {cvData.professionalSummary && (
+                    <div className="cv-print-section">
+                      <h2 className="cv-print-section-title">Professional Summary</h2>
+                      <p className="cv-print-summary">{cvData.professionalSummary}</p>
+                    </div>
+                  )}
+
+                  {cvData.skills?.length > 0 && (
+                    <div className="cv-print-section">
+                      <h2 className="cv-print-section-title">Skills</h2>
+                      <div className="cv-print-skills">
+                        {cvData.skills.map((skill, i) => <span key={i} className="cv-print-skill-tag">{skill}</span>)}
+                      </div>
+                    </div>
+                  )}
+
+                  {cvData.experience?.length > 0 && (
+                    <div className="cv-print-section">
+                      <h2 className="cv-print-section-title">Experience</h2>
+                      {cvData.experience.map((exp, i) => (
+                        <div key={i} className="cv-print-exp">
+                          <div className="cv-print-exp-header">
+                            <strong>{exp.title}</strong>
+                            <span className="cv-print-exp-company">{exp.company}</span>
+                            <span className="cv-print-exp-duration">{exp.duration}</span>
+                          </div>
+                          {exp.highlights?.length > 0 && (
+                            <ul className="cv-print-highlights">
+                              {exp.highlights.map((h, j) => <li key={j}>{h}</li>)}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {cvData.education?.length > 0 && (
+                    <div className="cv-print-section">
+                      <h2 className="cv-print-section-title">Education</h2>
+                      {cvData.education.map((edu, i) => (
+                        <div key={i} className="cv-print-edu">
+                          <strong>{edu.degree}</strong>
+                          <span>{edu.institution}</span>
+                          <span className="cv-print-edu-year">{edu.year}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {cvData.certifications?.length > 0 && (
+                    <div className="cv-print-section">
+                      <h2 className="cv-print-section-title">Certifications</h2>
+                      <ul className="cv-print-certs">
+                        {cvData.certifications.map((c, i) => <li key={i}>{c}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {cvData.tailoredKeywords?.length > 0 && (
+                    <div className="cv-print-section cv-keywords-section">
+                      <h2 className="cv-print-section-title">Key Competencies</h2>
+                      <div className="cv-print-keywords">
+                        {cvData.tailoredKeywords.map((kw, i) => <span key={i} className="cv-print-keyword">{kw}</span>)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Error in step 2 */}
+            {cvStep === 2 && cvError && (
+              <div className="cv-error-state">
+                <p>{cvError}</p>
+                <button onClick={() => setCvStep(1)}>Go Back</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ═══════════ FOOTER ═══════════ */}
       <footer className="site-footer">

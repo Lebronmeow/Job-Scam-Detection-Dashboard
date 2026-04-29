@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, Request
+from fastapi import FastAPI, Depends, HTTPException, Query, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -12,6 +12,7 @@ import models
 import schemas
 from database import engine, get_db
 from notification import manager
+from cv_generator import generate_cv
 
 # Try to import the injector script for remote execution
 import sys
@@ -208,3 +209,66 @@ def delete_job(job_id: int, db: Session = Depends(get_db), current_user: models.
     db.delete(db_job)
     db.commit()
     return None
+
+# --- CV Generation ---
+@app.post("/api/cv/generate")
+def generate_tailored_cv(payload: dict, db: Session = Depends(get_db)):
+    """Generate a tailored CV for a specific job posting."""
+    job_id = payload.get("job_id")
+    user_profile = payload.get("user_profile", {})
+    
+    if not job_id:
+        raise HTTPException(status_code=400, detail="job_id is required")
+    if not user_profile.get("name"):
+        raise HTTPException(status_code=400, detail="User name is required")
+    
+    # Fetch the job from database
+    db_job = db.query(models.Job).filter(models.Job.id == job_id).first()
+    if not db_job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job_data = {
+        "title": db_job.title,
+        "company": db_job.company,
+        "description": db_job.description or "",
+        "role": db_job.role or "",
+        "location": db_job.location or ""
+    }
+    
+    try:
+        cv = generate_cv(user_profile, job_data)
+        return {"status": "success", "cv": cv}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"CV generation failed: {str(e)}")
+
+@app.post("/api/cv/parse-pdf")
+async def parse_pdf_cv(file: UploadFile = File(...)):
+    """Extract text from an uploaded PDF file."""
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    
+    try:
+        import io
+        from PyPDF2 import PdfReader
+        
+        contents = await file.read()
+        reader = PdfReader(io.BytesIO(contents))
+        
+        text_parts = []
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text_parts.append(page_text)
+        
+        full_text = "\n".join(text_parts).strip()
+        
+        if not full_text:
+            raise HTTPException(status_code=422, detail="Could not extract text from PDF. The file may be image-based or empty.")
+        
+        return {"status": "success", "text": full_text}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF parsing failed: {str(e)}")
