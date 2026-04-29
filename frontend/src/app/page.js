@@ -144,6 +144,9 @@ export default function Home() {
     education: [{ degree: '', institution: '', year: '' }]
   });
 
+  /* ─── PDF Upload State ─── */
+  const [pdfFile, setPdfFile] = useState(null);
+  const [pdfUploading, setPdfUploading] = useState(false);
 
   const dialRef = useRef(null);
   const introRef = useRef(null);
@@ -332,6 +335,34 @@ export default function Home() {
       ...prev,
       education: prev.education.filter((_, i) => i !== index)
     }));
+  };
+
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPdfFile(file);
+    setPdfUploading(true);
+    setCvError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API}/api/cv/parse-pdf`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'PDF parsing failed');
+      }
+      const data = await res.json();
+      updateProfile('existingCV', data.text);
+    } catch (err) {
+      setCvError(err.message || 'Failed to parse PDF');
+    } finally {
+      setPdfUploading(false);
+      // Reset input so re-selecting the same file works
+      e.target.value = '';
+    }
   };
 
   const generateCV = async () => {
@@ -905,7 +936,22 @@ export default function Home() {
 
                 {/* Paste Existing CV */}
                 <div className="cv-form-section">
-                  <label className="cv-form-label">📄 Paste Existing CV (optional — we'll extract info)</label>
+                  <label className="cv-form-label">📄 Upload PDF or Paste Existing CV</label>
+                  
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <input 
+                      type="file" 
+                      accept=".pdf"
+                      onChange={handlePdfUpload}
+                      className="cv-input"
+                      disabled={pdfUploading}
+                      style={{ padding: '8px', flex: 1, background: 'rgba(255,255,255,0.7)', border: '1.5px solid rgba(0,0,0,0.08)', borderRadius: '10px', opacity: pdfUploading ? 0.6 : 1 }}
+                    />
+                    {pdfUploading && <span style={{ fontSize: '0.8rem', color: 'var(--coral)', fontWeight: 600 }}>Extracting text...</span>}
+                  </div>
+                  
+                  <div className="cv-form-divider" style={{ margin: '8px 0' }}><span>OR PASTE TEXT</span></div>
+
                   <textarea
                     className="cv-textarea"
                     placeholder="Paste your existing CV/resume text here and we'll tailor it for this job..."
