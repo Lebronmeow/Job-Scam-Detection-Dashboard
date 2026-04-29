@@ -91,6 +91,30 @@ Establish these parameters when creating the overarching Web Service:
 - **Root Directory:** `./frontend`
 - **Environment Variable:** Add `NEXT_PUBLIC_API_URL` and set it equal to the live HTTPS URL of your Render backend.
 
+---
+
+## 📝 AI-Powered CV Tailoring Workflow
+
+The dashboard features an integrated, context-aware CV Builder that tailors your resume specifically to the job you are viewing. 
+
+```mermaid
+flowchart TD
+    A["📄 Upload PDF CV"] -->|"Auto-Extraction via PyPDF2 API"| B["📝 Review & Edit Info"]
+    C["✍️ Paste CV Text"] --> B
+    D["🧑‍💻 Enter Details Manually"] --> B
+    B --> E["🧠 AI Tailoring Engine"]
+    E -->|"Cross-references with job description"| F["✨ Generate Tailored Content"]
+    F --> G["🔍 Preview CV"]
+    G --> H["💾 Download as PDF"]
+```
+
+### Workflow Breakdown:
+1. **Context-Aware Base:** The tool automatically pulls the currently selected job's title, company, and description.
+2. **Seamless PDF Extraction:** Users can upload their existing PDF resume. The backend (`/api/cv/parse-pdf`) instantly extracts the text using `PyPDF2` automatically upon file selection.
+3. **AI Generation:** The backend (`/api/cv/generate`) sends the extracted profile and the job context to an AI model (via `g4f` / `gpt-4o-mini`) which strategically rewrites the professional summary, aligns experience bullet points, and surfaces relevant matching keywords.
+4. **Premium Export:** The generated CV is rendered in a polished, print-ready format directly in the browser with an option to download as a PDF.
+
+---
 
 # Shield Protocol — Complete Technical Documentation
 
@@ -99,7 +123,7 @@ Establish these parameters when creating the overarching Web Service:
 > [!IMPORTANT]
 > Shield Protocol uses a **Corroborated Threat Intelligence** architecture — a dual-axis scoring engine inspired by how real-world fraud detection works. No other browser extension does this. Traditional scanners use flat keyword matching (word found → flag). Shield uses a 3-phase pipeline that cross-references verification signals against content threats, ensuring that **a single keyword match on a legitimate company results in 0% risk**, while a real scam that always triggers multiple signals gets amplified.
 
-### 4 Features No Other Extension Has
+### 5 Features No Other Extension Has
 
 | # | Innovation | What It Does | Why It Matters |
 |---|-----------|-------------|----------------|
@@ -107,6 +131,7 @@ Establish these parameters when creating the overarching Web Service:
 | 2 | **Corroboration Engine** | Single isolated signal = dampened. Multiple signals across categories = amplified. | Real scams **always** trigger 3+ signals (identity + financial + language). A single match is statistical noise. |
 | 3 | **Emoji Flood Detection (P19)** | Counts emoji density using comprehensive Unicode regex | No Fortune 500 HR team writes "💰💰💰 EARN BIG 🔥🔥🔥". Scam posts weaponize emojis to grab attention. No other scanner checks this. |
 | 4 | **Ghost Text / Unicode Steganography (P20)** | Detects invisible zero-width characters embedded in text | Scammers insert invisible Unicode chars so `"Eas​y Mo​ney"` defeats keyword filters while looking normal to humans. Truly novel detection layer. |
+| 5 | **AI-Tailored CV Builder** | Automatically extracts PDF text and tailors CVs to specific jobs | Beyond just detecting scams, the platform actively helps users land verified safe jobs using AI. |
 
 ---
 
