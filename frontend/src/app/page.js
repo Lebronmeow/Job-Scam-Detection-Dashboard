@@ -4,22 +4,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 /* ═══════════════════════════════════════
-   AUTH GUARD — redirect to /login if no token
-   ═══════════════════════════════════════ */
-function useAuthGuard() {
-  const [checked, setChecked] = useState(false);
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      window.location.href = "/login";
-    } else {
-      setChecked(true);
-    }
-  }, []);
-  return checked;
-}
-
-/* ═══════════════════════════════════════
    SCROLL-REVEAL COMPONENT
    ═══════════════════════════════════════ */
 function Reveal({ children, className = "", delay = 0, scale = false }) {
@@ -109,9 +93,6 @@ const THREAT_PARAMS = [
    MAIN COMPONENT
    ═══════════════════════════════════════ */
 export default function Home() {
-  /* ─── Auth Guard ─── */
-  const authReady = useAuthGuard();
-
   /* ─── State ─── */
   const [entered, setEntered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -261,12 +242,6 @@ export default function Home() {
     }, 600);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    window.location.href = "/login";
-  };
-
   /* ─── CV Builder Functions ─── */
   // Load saved profile from localStorage on mount
   useEffect(() => {
@@ -405,15 +380,6 @@ export default function Home() {
     window.print();
   };
 
-  /* ─── Loading state while auth is checking ─── */
-  if (!authReady) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0a0a', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
-        <p style={{ fontSize: '1.1rem', opacity: 0.6 }}>Loading...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="page-wrapper">
       {/* ═══════════ NAVIGATION ═══════════ */}
@@ -422,13 +388,6 @@ export default function Home() {
           SHIELDDB<span className="nav-logo-sub">SAFE</span>
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button
-            className="nav-logout-btn"
-            onClick={handleLogout}
-            title="Log out"
-          >
-            Logout
-          </button>
           <button
             className={`nav-burger ${menuOpen ? "open" : ""}`}
             onClick={() => setMenuOpen(!menuOpen)}

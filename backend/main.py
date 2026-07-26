@@ -1,13 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException, Query, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, case
 from typing import List, Optional
 from sse_starlette.sse import EventSourceResponse
 
-import auth
 import models
 import schemas
 from database import engine, get_db
@@ -116,44 +114,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "An unexpected error occurred. Please try again later.", "type": str(type(exc).__name__)}
     )
 
-# --- Authentication & Authorization ---
-@app.post("/api/auth/register")
-def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
-    try:
-        db_user = db.query(models.User).filter(models.User.email == user_in.email).first()
-        if db_user:
-            raise HTTPException(status_code=400, detail="Email already registered")
-        
-        hashed_password = auth.get_password_hash(user_in.password)
-        # the first user created is admin, others aren't by default (just for demo purposes)
-        is_admin = db.query(models.User).count() == 0 
-        
-        user = models.User(
-            email=user_in.email,
-            username=user_in.username,
-            hashed_password=hashed_password,
-            is_admin=is_admin
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        return {"id": user.id, "email": user.email, "username": user.username, "is_active": user.is_active, "is_admin": user.is_admin}
-    except HTTPException:
-        raise
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise
-
-@app.post("/api/auth/token", response_model=schemas.Token)
-def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
-    if not user or not auth.verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Incorrect email or password")
-    
-    access_token = auth.create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
-
 # --- Notifications (SSE) ---
 @app.get("/api/notifications/stream")
 async def notification_stream():
@@ -166,49 +126,6 @@ def publish_notification(payload: dict, db: Session = Depends(get_db)):
     # Could protect this with an internal api key instead
     manager.publish(payload)
     return {"status": "published"}
-
-# --- RESTful endpoints for Jobs (Admin Only) ---
-@app.post("/api/jobs", response_model=schemas.JobOut, status_code=201)
-def create_job(job: schemas.JobCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_admin_user)):
-    """REST: Create a new job manually (admin only)."""
-    db_job = models.Job(**job.model_dump())
-    db.add(db_job)
-    db.commit()
-    db.refresh(db_job)
-    
-    # Notify connected clients
-    manager.publish({"event": "new_job", "job_id": db_job.id, "title": db_job.title})
-    
-    return db_job
-
-@app.put("/api/jobs/{job_id}", response_model=schemas.JobOut)
-def update_job(job_id: int, job_update: schemas.JobCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_admin_user)):
-    """REST: Update a job manually (admin only)."""
-    db_job = db.query(models.Job).filter(models.Job.id == job_id).first()
-    if not db_job:
-        raise HTTPException(status_code=404, detail="Job not found")
-        
-    for key, value in job_update.model_dump(exclude_unset=True).items():
-        setattr(db_job, key, value)
-        
-    db.commit()
-    db.refresh(db_job)
-    return db_job
-
-@app.delete("/api/jobs/{job_id}", status_code=204)
-def delete_job(job_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_admin_user)):
-    """REST: Delete a job manually (admin only)."""
-    db_job = db.query(models.Job).filter(models.Job.id == job_id).first()
-    if not db_job:
-        raise HTTPException(status_code=404, detail="Job not found")
-        
-    # Also delete the score if present
-    if db_job.score:
-        db.delete(db_job.score)
-        
-    db.delete(db_job)
-    db.commit()
-    return None
 
 # --- CV Generation ---
 @app.post("/api/cv/generate")
